@@ -24,7 +24,7 @@ jobs:
           docker build --pull -t runner:test .
           docker run --rm --network none --read-only --cap-drop ALL \
             --security-opt no-new-privileges --entrypoint bash runner:test \
-            -ec 'test "$(id -un)" = runner; forgejo-runner --version; node --version; npm --version; python3 --version; git --version; jq --version'
+            -ec 'test "$(id -un)" = runner; forgejo-runner --version; node --version; npm --version; python3 --version; git --version; jq --version; docker --version; docker buildx version'
       - name: Publish image
         id: publish
         if: github.event_name != 'pull_request'
