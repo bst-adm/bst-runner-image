@@ -1,0 +1,46 @@
+diff --git a/internal/pkg/report/reporter.go b/internal/pkg/report/reporter.go
+index c7df641..d103dba 100644
+--- a/internal/pkg/report/reporter.go
++++ b/internal/pkg/report/reporter.go
+@@ -290,6 +290,10 @@ func (r *Reporter) RunDaemon() {
+ 	err = r.ReportState(false)
+ 	if err != nil {
+ 		r.log.Warnf("ReportState error: %v", err)
++		if connect.CodeOf(err) == connect.CodeUnauthenticated {
++			r.cancel()
++			return
++		}
+ 	}
+ 
+ 	time.AfterFunc(r.reportInterval, r.RunDaemon)
+@@ -414,6 +418,7 @@ func (r *Reporter) Close(runErr error) error {
+ func (r *Reporter) makeRetryOption() []retry.Option {
+ 	options := []retry.Option{
+ 		retry.Context(r.ctx),
++		retry.RetryIf(func(err error) bool { return connect.CodeOf(err) != connect.CodeUnauthenticated }),
+ 		retry.Attempts(r.retry.MaxRetries),
+ 		retry.Delay(r.retry.InitialDelay),
+ 	}
+diff --git a/internal/pkg/report/reporter_test.go b/internal/pkg/report/reporter_test.go
+index 5aae254..e67389a 100644
+--- a/internal/pkg/report/reporter_test.go
++++ b/internal/pkg/report/reporter_test.go
+@@ -881,3 +881,18 @@ func TestReporterClose(t *testing.T) {
+ 		})
+ 	}
+ }
++
++func TestReporterCancelsWhenRegistrationIsRevoked(t *testing.T) {
++	client := mocks.NewMockClient(t)
++	ctx, cancel := context.WithCancel(t.Context())
++	defer cancel()
++	taskCtx, err := structpb.NewStruct(map[string]any{})
++	require.NoError(t, err)
++	reporter := NewReporter(common.WithDaemonContext(ctx, t.Context()), cancel, client, &runnerv1.Task{Context: taskCtx}, time.Second, &config.Retry{MaxRetries: 3})
++	refusal := connect_go.NewError(connect_go.CodeUnauthenticated, errors.New("unregistered runner"))
++	client.On("UpdateTask", mock.Anything, mock.Anything).Return(nil, refusal).Once()
++	client.On("UpdateLog", mock.Anything, mock.Anything).Return(nil, refusal).Twice()
++	reporter.RunDaemon()
++	require.ErrorIs(t, ctx.Err(), context.Canceled)
++	require.ErrorContains(t, reporter.Close(ctx.Err()), "unregistered runner")
++}

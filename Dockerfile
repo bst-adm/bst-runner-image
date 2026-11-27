@@ -1,4 +1,14 @@
-FROM data.forgejo.org/forgejo/runner:13.1.0@sha256:c4af85fd9f0dd03788676a534781a87c71aa2c6a37737143e017eb94d4312952 AS forgejo
+FROM golang:1.26.8-bookworm@sha256:dc9ad6c05acc7a88e5b71bde60a5fe3bd4b9f0db209011711b464107438a8107 AS forgejo
+WORKDIR /src
+RUN git clone --depth 1 --branch v13.2.2 https://code.forgejo.org/forgejo/runner.git . \
+    && test "$(git rev-parse HEAD)" = 0e61343d1cb98d2a381d0d18f34aea408e66e4d2
+COPY patches/forgejo-runner-cancellation.patch /tmp/runner-cancellation.patch
+RUN git apply --check /tmp/runner-cancellation.patch \
+    && git apply /tmp/runner-cancellation.patch \
+    && go test ./internal/pkg/report \
+    && CGO_ENABLED=0 go build -trimpath -tags 'netgo osusergo' \
+       -ldflags '-s -w -X code.forgejo.org/forgejo/runner/v13/internal/pkg/ver.version=v13.2.2-cancellation.1' \
+       -o /bin/forgejo-runner .
 
 FROM docker:29-cli@sha256:34507eb5069d8be82c95dd3b6987d4250fd5fee49b82e2509b7d7a7030740d6d AS docker_cli
 

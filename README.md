@@ -68,3 +68,8 @@ credentials in workflow secrets and pass build-time secrets via BuildKit
 secret mounts instead of build arguments. The release push needs write
 permission to the output image and cache. Buildx works with a separate
 builder, keeping the node Docker socket outside the runner.
+
+The cancellation candidate builds Forgejo Runner v13.2.2 at upstream commit
+`0e61343d1cb98d2a381d0d18f34aea408e66e4d2` with a regression-tested reporting
+patch. When Forgejo rejects an active task update as unauthenticated, the
+runner cancels the local task and skips retries for rejected final reports.
